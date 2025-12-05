@@ -23,7 +23,9 @@ library(sf)
 library(dplyr)
 
 # Read in cleaned RGI data
-RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
+#RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
+RGIdf <- read.csv("data/RGIcleaned.csv")
+
 
 # Define UI
 ui <- fluidPage(
@@ -75,10 +77,10 @@ server <- function(input, output) {
   # Make reactive object for the RGI data by calling RGI IDs to extract the values the user chose
   RGI_react <- reactive(
     RGIdf %>%
-      filter(Region %in% input$o1region) %>%
-      filter(surge %in% input$surge_type) %>%
-      filter(elevation >= input$zmean_m[1] &
-               elevation <= input$zmean_m[2])
+      filter(o1region %in% input$o1region) %>%
+      filter(surge_type %in% input$surge_type) %>%
+      filter(zmean_m >= input$zmean_m[1] &
+               zmean_m <= input$zmean_m[2])
   )
   
   # Render the map based on our reactive occurrence dataset
@@ -95,21 +97,23 @@ server <- function(input, output) {
         lng = ~ cenlon,
         lat = ~ cenlat,# Note the () after occ_react!
         radius = 4,
-        color = ~ pal(Region),
+        color = ~ pal(o1region),
         fillOpacity = 0.7,
         stroke = FALSE,
         popup = ~ paste0(
-          "<b>RGI ID:</b> ", RGIId, "<br>",
-          "<b>Region:</b> ", Region, "<br>",
-          "<b>Surge Type:</b> ", surge, "<br>",
+          "<b>RGI ID:</b> ", rgi_id, "<br>",
+          "<b>Glacier Name:</b>", glac_name, "<br>",
+          "<b>Region:</b> ", o1region, "<br>",
+          "<b>Surge Type:</b> ", surge_type, "<br>",
           "<b>Mean Elevation (m):</b> ", zmean_m
+          
         )
       ) %>%
       # Add legend
       addLegend(
         position = "bottomright",
         pal = pal,
-        values = RGIdf$Region,
+        values = RGIdf$o1region,
         title = "Region"
       )
     
