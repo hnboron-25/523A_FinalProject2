@@ -1,0 +1,22 @@
+# Run setup script
+source("setup.R")
+
+# Load RGI7 dataframes
+RGI13 <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523-Final-Project/data/RGI2000-v7.0-G-13_central_asia-attributes.csv")
+RGI14 <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523-Final-Project/data/RGI2000-v7.0-G-14_south_asia_west-attributes.csv")
+RGI15 <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523-Final-Project/data/RGI2000-v7.0-G-15_south_asia_east-attributes.csv")
+
+# Join tables
+RGIcombo <- rbind(RGI13, RGI14, RGI15)
+
+# Clean data
+sub <- c("glims_id", "subm_id", "src_date", "primeclass", "subm_id", "src_date")
+
+FullRGI_cleaned <- RGIcombo %>% select(-sub) %>%
+  filter(surge_type %in% c(1, 2, 3))
+
+#write.csv(FullRGI_cleaned, "C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523-Final-Project/data/RGIcleaned.csv")
+
+
+
+
