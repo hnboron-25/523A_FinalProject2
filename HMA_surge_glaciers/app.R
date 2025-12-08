@@ -90,14 +90,37 @@ ui <- fluidPage(
 
 # Define Server
 server <- function(input, output) {
-  # Make reactive object for the RGI data by calling RGI IDs to extract the values the user chose
-  RGI_react <- reactive(
-    RGIdf %>%
-      filter(o1region %in% input$o1region) %>%
-      filter(surge_type %in% input$surge_type) %>%
-      filter(zmean_m >= input$zmean_m[1] &
-               zmean_m <= input$zmean_m[2])
+  
+  # Surge-type lookup table
+  surge_labels <- c(
+    "0" = "Not Surge-Type",
+    "1" = "Possible",
+    "2" = "Probable",
+    "3" = "Observed"
   )
+  
+  # Make reactive object for the RGI data by calling RGI IDs to extract the values the user chose
+  RGI_react <- reactive({
+    
+    df <- RGIdf %>%
+      filter(
+        o1region %in% input$o1region,
+        surge_type %in% input$surge_type,
+        zmean_m >= input$zmean_m[1],
+        zmean_m <= input$zmean_m[2]
+      )
+    
+    # Add readable surge-type labels
+    df$surge_text <- dplyr::recode(
+      as.character(df$surge_type),
+      "0" = "Not Surge-Type",
+      "1" = "Possible",
+      "2" = "Probable",
+      "3" = "Observed"
+    )
+    
+    df
+  })
   
   # Render the map based on our reactive occurrence dataset
   
@@ -120,7 +143,7 @@ server <- function(input, output) {
           "<b>RGI ID:</b> ", rgi_id, "<br>",
           "<b>Glacier Name:</b>", glac_name, "<br>",
           "<b>Region:</b> ", o1region, "<br>",
-          "<b>Surge Type:</b> ", surge_type, "<br>",
+          "<b>Surge Type:</b> ", surge_text, "<br>",
           "<b>Mean Elevation (m):</b> ", zmean_m
           
         )
