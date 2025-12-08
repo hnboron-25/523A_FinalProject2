@@ -20,6 +20,7 @@
 library(shiny)
 library(leaflet)
 library(sf)
+library(bslib)
 library(dplyr)
 
 # Read in cleaned RGI data
@@ -68,9 +69,23 @@ ui <- fluidPage(
     ),
     
     # Main panel for displaying map
-    mainPanel(leafletOutput("map"))
+    mainPanel(
+      tabsetPanel(
+      tabPanel("Map",
+               br(),
+               leafletOutput("map", height = "600px")),
+      tabPanel("Elevation Histogram",
+               br(),
+               "plot"),
+      tabPanel("Summary Table",
+               br(),
+               "summary_table"))
+      )
+    )
   )
-)
+
+
+
 
 # Define Server
 server <- function(input, output) {
