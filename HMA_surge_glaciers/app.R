@@ -22,10 +22,11 @@ library(leaflet)
 library(sf)
 library(bslib)
 library(dplyr)
+library(plotly)
 
 # Read in cleaned RGI data
-#RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
-RGIdf <- read.csv("data/RGIcleaned.csv")
+RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
+#RGIdf <- read.csv("data/RGIcleaned.csv")
 
 
 # Define UI
@@ -53,8 +54,8 @@ ui <- fluidPage(
       checkboxGroupInput(
         inputId = "surge_type",
         label = "Surge Status",
-        choiceNames = list("Possible", "Probable", "Observed"),
-        choiceValues = list(1, 2, 3),
+        choiceNames = list("Not Surge-Type", "Possible", "Probable", "Observed"),
+        choiceValues = list(0, 1, 2, 3),
         selected = c(1, 2, 3)
       ),
       
@@ -74,9 +75,9 @@ ui <- fluidPage(
       tabPanel("Map",
                br(),
                leafletOutput("map", height = "600px")),
-      tabPanel("Elevation Histogram",
+      tabPanel("Elevation Distribution",
                br(),
-               "plot"),
+               plotlyOutput("elev_compare_plot", height = "500px")),
       tabPanel("Summary Table",
                br(),
                "summary_table"))
@@ -133,6 +134,35 @@ server <- function(input, output) {
       )
     
   })
+
+# Create elevation plot
+  output$elev_compare_plot <- renderPlotly({
+    
+    df <- RGI_react()
+    
+    # Filter for non-surge (0) and observed surge-type (3)
+    df_sub <- df %>%
+      filter(surge_type %in% c(0, 3)) %>%
+      mutate(surge_label = factor(surge_type,
+                                  levels = c(0, 3),
+                                  labels = c("Non-Surge", "Observed Surge")))
+    
+    # Create interactive boxplot
+    plot_ly(
+      data = df_sub,
+      x = ~surge_label,
+      y = ~zmean_m,
+      type = "box",
+      color = ~surge_label
+    ) %>%
+      layout(
+        title = "Elevation Comparison: Non-Surge vs Observed Surge-Type Glaciers",
+        xaxis = list(title = "Glacier Type"),
+        yaxis = list(title = "Mean Elevation (m above sea level)"),
+        showlegend = FALSE
+      )
+  })
+  
   
 }
 # Run the app
