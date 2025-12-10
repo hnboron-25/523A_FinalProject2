@@ -68,8 +68,8 @@ ui <- page_sidebar(
         checkboxGroupInput(
           "surge_filter_boxplot",
           "Include glacier types:",
-          choiceNames = list("Non-Surge (0)", "Observed Surge (3)"),
-          choiceValues = list(0, 3),
+          choiceNames = list("Non-Surge", "Possible", "Probable", "Observed Surge-Type"),
+          choiceValues = list(0, 1, 2, 3),
           selected = c(0, 3)
         ),
         
@@ -82,9 +82,27 @@ ui <- page_sidebar(
       )
     ),
     
-    # SLOPE DENSITY CONTROLS
+    # SCATTERPLOT CONTROLS
     conditionalPanel(
-      condition = "input.tabs == 'Slope Distribution'"
+      condition = "input.tabs == 'Slope vs Area'",
+      h4("Scatterplot Controls", class = "mt-2"),
+      card(
+        class = "p-2",
+        checkboxGroupInput(
+          "surge_filter_scatter",
+          "Glacier Types to Show:",
+          choiceNames = list(
+            "Non-Surge-Type",
+            "Possible",
+            "Probable",
+            "Observed Surge-Type"
+          ),
+          choiceValues = list(0, 1, 2, 3),
+          selected = c(0, 3)
+        ),
+        checkboxInput("log_x", "Log-scale X-axis (Slope)", FALSE),
+        checkboxInput("log_y", "Log-scale Y-axis (Area)", FALSE)
+      )
     )
   ),
   
@@ -115,9 +133,9 @@ ui <- page_sidebar(
         
         # --- THIRD TAB ---
         tabPanel(
-          "Slope Distribution",
+          "Slope vs Area",
           div(class = "mt-3",
-              plotlyOutput("slope_density_plot", height = "550px"))
+              plotlyOutput("scatter_slope_area", height = "550px"))
         )
       )
     )
@@ -188,8 +206,8 @@ server <- function(input, output) {
       ) %>%
       mutate(surge_label = factor(
         surge_type,
-        levels = c(0, 3),
-        labels = c("Non-Surge", "Observed Surge")
+        levels = c(0, 1, 2, 3),
+        labels = c("Non-Surge", "Possible Surge", "Probable Surge", "Observed Surge")
       ))
   })
   
@@ -220,9 +238,40 @@ server <- function(input, output) {
   })
   
   # ============================
-  # 3rd Tab: Slope Density Plot
+  # 3rd Tab: SCATTERPLOT
   # ============================
-
+  RGI_scatter <- reactive({
+    RGIdf %>%
+      filter(surge_type %in% input$surge_filter_scatter) %>%
+      mutate(
+        surge_label = surge_labels[as.character(surge_type)]
+      )
+  })
+  
+  # -------------------------
+  # NEW: SCATTERPLOT OUTPUT
+  # -------------------------
+  output$scatter_slope_area <- renderPlotly({
+    df <- RGI_scatter()
+    
+    plot_ly(
+      data = df,
+      x = ~slope_deg,
+      y = ~area_km2,
+      type = "scatter",
+      mode = "markers",
+      color = ~surge_label,
+      marker = list(size = 8, opacity = 0.7)
+    ) %>%
+      layout(
+        title = list(text = "Slope vs Area by Glacier Surge Type", x = 0.05),
+        xaxis = list(title = "Slope (degrees)",
+                     type = ifelse(input$log_x, "log", "linear")
+                     ),
+        yaxis = list(title = "Area (km²)",
+                     type = ifelse(input$log_y, "log", "linear"))
+      )
+  })
 }
 
 shinyApp(ui, server)
