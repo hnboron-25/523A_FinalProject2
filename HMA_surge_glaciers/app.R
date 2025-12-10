@@ -103,8 +103,35 @@ ui <- page_sidebar(
         checkboxInput("log_x", "Log-scale X-axis (Slope)", FALSE),
         checkboxInput("log_y", "Log-scale Y-axis (Area)", FALSE)
       )
+    ),
+    
+  # SURGE GLACIERS WITH LAKES CONTROLS
+  conditionalPanel(
+    condition = "input.tabs == 'Surge-Type Glaciers with Glacial Lakes'",
+    h4("Compare Special Surge-Type Glaciers", class = "mt-2"),
+    card(
+      class = "p-2",
+      
+      selectInput(
+        "target_var",
+        "Variable to Compare:",
+        choices = list(
+          "Area (km²)" = "area_km2",
+          "Slope (degrees)" = "slope_deg",
+          "Mean Elevation (m)" = "zmean_m",
+          "Min Elevation (m)" = "zmin_m",
+          "Max Elevation (m)" = "zmax_m",
+          "Glacier Length (km)" = "length_km",
+          "Width (km)" = "width_km"
+        ),
+        selected = "area_km2"
+      ),
+      
+      checkboxInput("target_log", "Log-scale Y-axis", FALSE)
     )
-  ),
+  )
+ ),
+
   
   # ============================================================
   # MAIN CONTENT AREA
@@ -136,7 +163,17 @@ ui <- page_sidebar(
           "Slope vs Area",
           div(class = "mt-3",
               plotlyOutput("scatter_slope_area", height = "550px"))
-        )
+        ),
+        
+        # --- FOURTH TAB ---
+        tabPanel(
+          "Surge-Type Glaciers with Glacial Lakes",
+          div(class = "mt-3"),
+          plotlyOutput("target_plot", height = "450px"),
+          br(),
+          leafletOutput("target_map", height = "350px"),
+          br(),
+          tableOutput("target_table"))
       )
     )
   )
@@ -249,7 +286,7 @@ server <- function(input, output) {
   })
   
   # -------------------------
-  # NEW: SCATTERPLOT OUTPUT
+  # SCATTERPLOT OUTPUT
   # -------------------------
   output$scatter_slope_area <- renderPlotly({
     df <- RGI_scatter()
@@ -272,6 +309,83 @@ server <- function(input, output) {
                      type = ifelse(input$log_y, "log", "linear"))
       )
   })
+  
+  # -------------------------
+  # REACTIVE LAKE-CREATING SURGING GLACIERS
+  # ------------------------- 
+  target_ids <- c(
+    "RGI2000-v7.0-G-14-07912", "RGI2000-v7.0-G-14-21665",
+    "RGI2000-v7.0-G-14-08306", "RGI2000-v7.0-G-14-08687",
+    "RGI2000-v7.0-G-14-21865", "RGI2000-v7.0-G-13-16775",
+    "RGI2000-v7.0-G-14-08488", "RGI2000-v7.0-G-14-14958",
+    "RGI2000-v7.0-G-14-19543", "RGI2000-v7.0-G-14-14958"
+  )
+  
+  RGI_target <- reactive({RGIdf %>%
+      filter(rgi_id %in% target_ids) %>%
+      mutate(
+        glac_name = case_when(
+          rgi_id == "RGI2000-v7.0-G-13-16775" ~ "Medvezhiy",
+          rgi_id == "RGI2000-v7.0-G-14-14958" ~ "Kyagar",
+          rgi_id == "RGI2000-v7.0-G-14-19543" ~ "Chong Kumdan",
+          rgi_id == "RGI2000-v7.0-G-14-08488" ~ "Shisper",
+          TRUE ~ glac_name   # keep existing names for others
+        )
+      )
+  })
+  
+  # -------------------------
+  # VARIABLE COMPARISON PLOT
+  # ------------------------- 
+  output$target_plot <- renderPlotly({
+    df <- RGI_target()
+    var <- input$target_var
+    
+    plot_ly(
+      data = df,
+      x = ~glac_name,
+      y = df[[var]],
+      type = "bar",
+      text = ~paste("RGI:", rgi_id),
+      hoverinfo = "text+y",
+      marker = list(color = "steelblue")
+    ) %>%
+      layout(
+        title = paste("Comparison of", var, "Across Selected Surge-Type Glaciers"),
+        xaxis = list(title = "Glacier Name"),
+        yaxis = list(
+          title = var,
+          type = ifelse(input$target_log, "log", "linear")
+        ),
+        margin = list(b = 120)
+      )
+  })
+  
+  # -------------------------
+  # MAPPED LAKE GLACIERS
+  # ------------------------- 
+  output$target_map <- renderLeaflet({
+    df <- RGI_target()
+    
+    leaflet(df) %>%
+      addTiles() %>%
+      addCircleMarkers(
+        lng = ~cenlon, lat = ~cenlat,
+        popup = ~paste0("<b>", glac_name, "</b><br>", rgi_id),
+        radius = 6, fillOpacity = 0.8,
+        color = "red"
+      )
+  })
+  
+  # -------------------------
+  # LAKE GLACIER SUMMARY TABLE
+  # ------------------------- 
+  output$target_table <- renderTable({
+    df <- RGI_target()
+    df %>% 
+      select(rgi_id, glac_name, area_km2, slope_deg, zmean_m, length_km, width_km)
+  })
+  
 }
 
 shinyApp(ui, server)
