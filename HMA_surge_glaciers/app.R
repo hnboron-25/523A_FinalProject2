@@ -72,8 +72,9 @@ ui <- page_sidebar(
           choiceValues = list(0, 3),
           selected = c(0, 3)
         ),
+        
         sliderInput(
-          "zmean_map", "Mean Elevation (m)",
+          "zmean_box", "Mean Elevation (m)",
           min = 3000, max = 7500,
           value = c(3000, 7500)
         ),
@@ -83,7 +84,7 @@ ui <- page_sidebar(
     
     # SLOPE DENSITY CONTROLS
     conditionalPanel(
-      condition = "input.tabs == '"
+      condition = "input.tabs == 'Slope Distribution'"
     )
   ),
   
@@ -180,7 +181,11 @@ server <- function(input, output) {
   # -------------------------
   RGI_boxplot <- reactive({
     RGIdf %>%
-      filter(surge_type %in% input$surge_filter_boxplot) %>%
+      filter(
+        surge_type %in% input$surge_filter_boxplot,
+        zmean_m >= input$zmean_box[1],       # <-- FILTER ADDED
+        zmean_m <= input$zmean_box[2]
+      ) %>%
       mutate(surge_label = factor(
         surge_type,
         levels = c(0, 3),
@@ -217,32 +222,7 @@ server <- function(input, output) {
   # ============================
   # 3rd Tab: Slope Density Plot
   # ============================
-  output$slope_density_plot <- renderPlotly({
-    df <- RGIdf %>%
-      filter(surge_type %in% c(0, 3)) %>%   # Non-Surge vs Observed Surge only
-      mutate(surge_label = factor(
-        surge_type,
-        levels = c(0, 3),
-        labels = c("Non-Surge", "Observed Surge")
-      ))
-    
-    plot_ly(
-      data = df,
-      type = "density",
-      x = ~slope,
-      color = ~surge_label
-    ) %>%
-      layout(
-        title = list(
-          text = "Slope Distribution: Non-Surge vs Observed Surge Glaciers",
-          x = 0.05,
-          font = list(size = 20)
-        ),
-        xaxis = list(title = "Slope (degrees)"),
-        yaxis = list(title = "Density"),
-        legend = list(title = list(text = "<b>Glacier Type</b>"))
-      )
-  })
+
 }
 
 shinyApp(ui, server)
