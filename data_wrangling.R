@@ -28,4 +28,5 @@ RGIdfcomplete <- FullRGI_cleaned %>%
     )
   )
 
-write.csv(RGIdfcomplete, "C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
+#write.csv(RGIdfcomplete, "C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
+df<-read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")

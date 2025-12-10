@@ -1,22 +1,3 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
-# Set up for Shiny App
 library(shiny)
 library(leaflet)
 library(sf)
@@ -24,74 +5,129 @@ library(bslib)
 library(dplyr)
 library(plotly)
 
-# Read in cleaned RGI data
 RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Applications/GitProjects/523A_FinalProject2/HMA_surge_glaciers/data/RGIcleaned.csv")
-#RGIdf <- read.csv("data/RGIcleaned.csv")
 
-
-# Define UI
-ui <- fluidPage(
-  # App Title
-  titlePanel("Surge-type Glaciers of High Mountain Asia (HMA)"),
+# ----------------------------------------------------------
+# UI
+# ----------------------------------------------------------
+ui <- page_sidebar(
+  title = div(
+    h2("Surge-type Glaciers of High Mountain Asia", class = "mt-2 mb-1"),
+    p("Explore spatial patterns and glacier attributes across HMA.", class = "text-muted mb-3")
+  ),
   
-  # Info text
-  h4("View spatial distribution of surging glaciers and their attributes across HMA"),
+  # ---- THEME ----
+  theme = bs_theme(
+    version = 5,
+    bootswatch = "solar",      # Try: minty, litera, quartz, cyborg, sandstone, etc.
+    primary = "#3269a8",
+    base_font = font_google("Inter"),
+    heading_font = font_google("Montserrat"),
+    secondary = "#839dc9"
+  ),
   
-  # Sidebar layout
-  sidebarLayout(
-    # Sidebar panel for widgets that users can interact with
-    sidebarPanel(
-      # Input: select region
-      checkboxGroupInput(
-        inputId = "o1region",
-        label = "Region",
-        choices = list(13, 14, 15),
-        # selected = sets which are selected by default
-        selected = c(13, 14, 15)
-      ),
-      
-      # Input: Filter points by observation type
-      checkboxGroupInput(
-        inputId = "surge_type",
-        label = "Surge Status",
-        choiceNames = list("Not Surge-Type", "Possible", "Probable", "Observed"),
-        choiceValues = list(0, 1, 2, 3),
-        selected = c(1, 2, 3)
-      ),
-      
-      # Input: Filter by Elevation
-      sliderInput(
-        inputId = "zmean_m",
-        label = "Mean Elevation (m above sea level)",
-        min = 3000,
-        max = 7500,
-        value = c(3000, 7500)
+  # ============================================================
+  # LEFT SIDEBAR (changes by TAB)
+  # ============================================================
+  sidebar = sidebar(
+    open = "always",
+    width = "320px",
+    class = "px-2",
+    
+    # MAP CONTROLS
+    conditionalPanel(
+      condition = "input.tabs == 'Map'",
+      h4("Map Filters", class = "mt-2"),
+      card(
+        class = "p-2",
+        checkboxGroupInput(
+          "o1region_map", "Region",
+          choices = list(13, 14, 15),
+          selected = c(13, 14, 15)
+        ),
+        checkboxGroupInput(
+          "surge_type_map", "Surge Status",
+          choiceNames = list("Not Surge-Type", "Possible", "Probable", "Observed"),
+          choiceValues = list(0, 1, 2, 3),
+          selected = c(1, 2, 3)
+        ),
+        sliderInput(
+          "zmean_map", "Mean Elevation (m)",
+          min = 3000, max = 7500,
+          value = c(3000, 7500)
+        )
       )
     ),
     
-    # Main panel for displaying map
-    mainPanel(
+    # BOXPLOT CONTROLS
+    conditionalPanel(
+      condition = "input.tabs == 'Elevation Distribution'",
+      h4("Boxplot Controls", class = "mt-2"),
+      card(
+        class = "p-2",
+        checkboxGroupInput(
+          "surge_filter_boxplot",
+          "Include glacier types:",
+          choiceNames = list("Non-Surge (0)", "Observed Surge (3)"),
+          choiceValues = list(0, 3),
+          selected = c(0, 3)
+        ),
+        sliderInput(
+          "zmean_map", "Mean Elevation (m)",
+          min = 3000, max = 7500,
+          value = c(3000, 7500)
+        ),
+        
+      )
+    ),
+    
+    # SLOPE DENSITY CONTROLS
+    conditionalPanel(
+      condition = "input.tabs == '"
+    )
+  ),
+  
+  # ============================================================
+  # MAIN CONTENT AREA
+  # ============================================================
+  layout_columns(
+    col_widths = c(12),
+    card(
+      full_screen = TRUE,
       tabsetPanel(
-      tabPanel("Map",
-               br(),
-               leafletOutput("map", height = "600px")),
-      tabPanel("Elevation Distribution",
-               br(),
-               plotlyOutput("elev_compare_plot", height = "500px")),
-      tabPanel("Summary Table",
-               br(),
-               "summary_table"))
+        id = "tabs",
+        type = "tabs",
+        
+        # --- MAP TAB ---
+        tabPanel(
+          "Map",
+          div(class = "mt-3"),
+          leafletOutput("map", height = "650px")
+        ),
+        
+        # --- BOXPLOT TAB ---
+        tabPanel(
+          "Elevation Distribution",
+          div(class = "mt-3"),
+          plotlyOutput("elev_compare_plot", height = "550px")
+        ),
+        
+        # --- THIRD TAB ---
+        tabPanel(
+          "Slope Distribution",
+          div(class = "mt-3",
+              plotlyOutput("slope_density_plot", height = "550px"))
+        )
       )
     )
   )
+)
 
-
-
-
-# Define Server
+# ----------------------------------------------------------
+# SERVER
+# ----------------------------------------------------------
 server <- function(input, output) {
   
-  # Surge-type lookup table
   surge_labels <- c(
     "0" = "Not Surge-Type",
     "1" = "Possible",
@@ -99,100 +135,114 @@ server <- function(input, output) {
     "3" = "Observed"
   )
   
-  # Make reactive object for the RGI data by calling RGI IDs to extract the values the user chose
-  RGI_react <- reactive({
-    
+  # -------------------------
+  # MAP DATA REACTIVE
+  # -------------------------
+  RGI_map <- reactive({
     df <- RGIdf %>%
       filter(
-        o1region %in% input$o1region,
-        surge_type %in% input$surge_type,
-        zmean_m >= input$zmean_m[1],
-        zmean_m <= input$zmean_m[2]
+        o1region %in% input$o1region_map,
+        surge_type %in% input$surge_type_map,
+        zmean_m >= input$zmean_map[1],
+        zmean_m <= input$zmean_map[2]
       )
-    
-    # Add readable surge-type labels
-    df$surge_text <- dplyr::recode(
-      as.character(df$surge_type),
-      "0" = "Not Surge-Type",
-      "1" = "Possible",
-      "2" = "Probable",
-      "3" = "Observed"
-    )
-    
+    df$surge_text <- surge_labels[as.character(df$surge_type)]
     df
   })
   
-  # Render the map based on our reactive occurrence dataset
-  
-  # Create color palette for Regions
   pal <- colorFactor(palette = "Dark2", domain = RGIdf$o1region)
+  
   output$map <- renderLeaflet({
-    # Create leaflet map
     leaflet() %>%
       addTiles() %>%
-      # Add glacier points
       addCircleMarkers(
-        data = RGI_react(),
-        lng = ~ cenlon,
-        lat = ~ cenlat,# Note the () after occ_react!
+        data = RGI_map(),
+        lng = ~cenlon,
+        lat = ~cenlat,
         radius = 4,
-        color = ~ pal(o1region),
-        fillOpacity = 0.7,
+        color = ~pal(o1region),
         stroke = FALSE,
-        popup = ~ paste0(
+        fillOpacity = 0.7,
+        popup = ~paste0(
           "<b>RGI ID:</b> ", rgi_id, "<br>",
-          "<b>Glacier Name:</b>", glac_name, "<br>",
+          "<b>Name:</b> ", glac_name, "<br>",
           "<b>Region:</b> ", o1region, "<br>",
           "<b>Surge Type:</b> ", surge_text, "<br>",
-          "<b>Mean Elevation (m):</b> ", zmean_m
-          
+          "<b>Mean Elevation:</b> ", zmean_m
         )
       ) %>%
-      # Add legend
-      addLegend(
-        position = "bottomright",
-        pal = pal,
-        values = RGIdf$o1region,
-        title = "Region"
-      )
-    
+      addLegend("bottomright", pal = pal, values = RGIdf$o1region, title = "Region")
   })
-
-# Create elevation plot
+  
+  
+  # -------------------------
+  # BOXPLOT REACTIVE
+  # -------------------------
+  RGI_boxplot <- reactive({
+    RGIdf %>%
+      filter(surge_type %in% input$surge_filter_boxplot) %>%
+      mutate(surge_label = factor(
+        surge_type,
+        levels = c(0, 3),
+        labels = c("Non-Surge", "Observed Surge")
+      ))
+  })
+  
+  # -------------------------
+  # BOXPLOT PLOTLY
+  # -------------------------
   output$elev_compare_plot <- renderPlotly({
+    df <- RGI_boxplot()
     
-    df <- RGI_react()
-    
-    # Filter for non-surge (0) and observed surge-type (3)
-    df_sub <- df %>%
-      filter(surge_type %in% c(0, 3)) %>%
-      mutate(surge_label = factor(surge_type,
-                                  levels = c(0, 3),
-                                  labels = c("Non-Surge", "Observed Surge")))
-    
-    # Create interactive boxplot
     plot_ly(
-      data = df_sub,
+      data = df,
       x = ~surge_label,
       y = ~zmean_m,
       type = "box",
       color = ~surge_label
     ) %>%
       layout(
-        title = "Elevation Comparison: Non-Surge vs Observed Surge-Type Glaciers",
+        title = list(
+          text = "Elevation Comparison",
+          x = 0.05,
+          font = list(size = 20)
+        ),
         xaxis = list(title = "Glacier Type"),
-        yaxis = list(title = "Mean Elevation (m above sea level)"),
+        yaxis = list(title = "Mean Elevation (m)"),
+        margin = list(l = 70, r = 30, t = 80, b = 70),
         showlegend = FALSE
       )
   })
   
-  
+  # ============================
+  # 3rd Tab: Slope Density Plot
+  # ============================
+  output$slope_density_plot <- renderPlotly({
+    df <- RGIdf %>%
+      filter(surge_type %in% c(0, 3)) %>%   # Non-Surge vs Observed Surge only
+      mutate(surge_label = factor(
+        surge_type,
+        levels = c(0, 3),
+        labels = c("Non-Surge", "Observed Surge")
+      ))
+    
+    plot_ly(
+      data = df,
+      type = "density",
+      x = ~slope,
+      color = ~surge_label
+    ) %>%
+      layout(
+        title = list(
+          text = "Slope Distribution: Non-Surge vs Observed Surge Glaciers",
+          x = 0.05,
+          font = list(size = 20)
+        ),
+        xaxis = list(title = "Slope (degrees)"),
+        yaxis = list(title = "Density"),
+        legend = list(title = list(text = "<b>Glacier Type</b>"))
+      )
+  })
 }
-# Run the app
-shinyApp(ui = ui, server = server)
 
-
-
-
-
-
+shinyApp(ui, server)
