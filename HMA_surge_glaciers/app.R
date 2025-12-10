@@ -12,14 +12,17 @@ RGIdf <- read.csv("C:/Users/hnbor/Desktop/Environmental Data Science Application
 # ----------------------------------------------------------
 ui <- page_sidebar(
   title = div(
-    h2("Surge-type Glaciers of High Mountain Asia", class = "mt-2 mb-1"),
-    p("Explore spatial patterns and glacier attributes across HMA.", class = "text-muted mb-3")
+    h1("Surge-type Glaciers of High Mountain Asia", class = "mt-2 mb-1"),
+    h3("Explore spatial patterns and glacier attributes across HMA.", class = "mt-2 mb-1"),
+    p("Data from: RGI 7.0 Consortium, 2023. Randolph Glacier Inventory - A Dataset of Global Glacier Outlines, Version 7.0. Boulder, Colorado USA. NSIDC: National Snow and Ice Data Center. doi:10.5067/f6jmovy5navz. Online access: https://doi.org/10.5067/f6jmovy5navz",
+      class = "text-muted mb-3"),
+    p("Shiny app made by Haley N. Boron - Colorado State University", class = "text-muted mb-3")
   ),
   
   # ---- THEME ----
   theme = bs_theme(
     version = 5,
-    bootswatch = "solar",      # Try: minty, litera, quartz, cyborg, sandstone, etc.
+    bootswatch = "solar",
     primary = "#3269a8",
     base_font = font_google("Inter"),
     heading_font = font_google("Montserrat"),
@@ -27,7 +30,7 @@ ui <- page_sidebar(
   ),
   
   # ============================================================
-  # LEFT SIDEBAR (changes by TAB)
+  # LEFT SIDEBAR
   # ============================================================
   sidebar = sidebar(
     open = "always",
@@ -72,13 +75,11 @@ ui <- page_sidebar(
           choiceValues = list(0, 1, 2, 3),
           selected = c(0, 3)
         ),
-        
         sliderInput(
           "zmean_box", "Mean Elevation (m)",
           min = 3000, max = 7500,
           value = c(3000, 7500)
-        ),
-        
+        )
       )
     ),
     
@@ -105,33 +106,38 @@ ui <- page_sidebar(
       )
     ),
     
-  # SURGE GLACIERS WITH LAKES CONTROLS
-  conditionalPanel(
-    condition = "input.tabs == 'Surge-Type Glaciers with Glacial Lakes'",
-    h4("Compare Special Surge-Type Glaciers", class = "mt-2"),
-    card(
-      class = "p-2",
-      
-      selectInput(
-        "target_var",
-        "Variable to Compare:",
-        choices = list(
-          "Area (km²)" = "area_km2",
-          "Slope (degrees)" = "slope_deg",
-          "Mean Elevation (m)" = "zmean_m",
-          "Min Elevation (m)" = "zmin_m",
-          "Max Elevation (m)" = "zmax_m",
-          "Glacier Length (km)" = "length_km",
-          "Width (km)" = "width_km"
+    # FOURTH TAB CONTROLS
+    conditionalPanel(
+      condition = "input.tabs == 'Surge-Type Glaciers with Glacial Lakes'",
+      h4("Compare Special Surge-Type Glaciers", class = "mt-2"),
+      card(
+        class = "p-2",
+        
+        selectInput(
+          "selected_glacier",
+          "Select Glacier:",
+          choices = NULL   # populated server-side
         ),
-        selected = "area_km2"
-      ),
-      
-      checkboxInput("target_log", "Log-scale Y-axis", FALSE)
+        
+        selectInput(
+          "target_var",
+          "Variable to Compare:",
+          choices = list(
+            "Area (km²)" = "area_km2",
+            "Slope (degrees)" = "slope_deg",
+            "Mean Elevation (m)" = "zmean_m",
+            "Min Elevation (m)" = "zmin_m",
+            "Max Elevation (m)" = "zmax_m",
+            "Glacier Length (km)" = "length_km",
+            "Width (km)" = "width_km"
+          ),
+          selected = "area_km2"
+        ),
+        
+        checkboxInput("target_log", "Log-scale Y-axis", FALSE)
+      )
     )
-  )
- ),
-
+  ),
   
   # ============================================================
   # MAIN CONTENT AREA
@@ -144,28 +150,24 @@ ui <- page_sidebar(
         id = "tabs",
         type = "tabs",
         
-        # --- MAP TAB ---
         tabPanel(
           "Map",
           div(class = "mt-3"),
           leafletOutput("map", height = "650px")
         ),
         
-        # --- BOXPLOT TAB ---
         tabPanel(
           "Elevation Distribution",
           div(class = "mt-3"),
           plotlyOutput("elev_compare_plot", height = "550px")
         ),
         
-        # --- THIRD TAB ---
         tabPanel(
           "Slope vs Area",
-          div(class = "mt-3",
-              plotlyOutput("scatter_slope_area", height = "550px"))
+          div(class = "mt-3"),
+          plotlyOutput("scatter_slope_area", height = "550px")
         ),
         
-        # --- FOURTH TAB ---
         tabPanel(
           "Surge-Type Glaciers with Glacial Lakes",
           div(class = "mt-3"),
@@ -173,7 +175,8 @@ ui <- page_sidebar(
           br(),
           leafletOutput("target_map", height = "350px"),
           br(),
-          tableOutput("target_table"))
+          tableOutput("target_table")
+        )
       )
     )
   )
@@ -192,15 +195,14 @@ server <- function(input, output) {
   )
   
   # -------------------------
-  # MAP DATA REACTIVE
+  # MAP REACTIVE FILTER
   # -------------------------
   RGI_map <- reactive({
     df <- RGIdf %>%
       filter(
         o1region %in% input$o1region_map,
         surge_type %in% input$surge_type_map,
-        zmean_m >= input$zmean_map[1],
-        zmean_m <= input$zmean_map[2]
+        between(zmean_m, input$zmean_map[1], input$zmean_map[2])
       )
     df$surge_text <- surge_labels[as.character(df$surge_type)]
     df
@@ -230,7 +232,6 @@ server <- function(input, output) {
       addLegend("bottomright", pal = pal, values = RGIdf$o1region, title = "Region")
   })
   
-  
   # -------------------------
   # BOXPLOT REACTIVE
   # -------------------------
@@ -238,8 +239,7 @@ server <- function(input, output) {
     RGIdf %>%
       filter(
         surge_type %in% input$surge_filter_boxplot,
-        zmean_m >= input$zmean_box[1],       # <-- FILTER ADDED
-        zmean_m <= input$zmean_box[2]
+        between(zmean_m, input$zmean_box[1], input$zmean_box[2])
       ) %>%
       mutate(surge_label = factor(
         surge_type,
@@ -248,9 +248,6 @@ server <- function(input, output) {
       ))
   })
   
-  # -------------------------
-  # BOXPLOT PLOTLY
-  # -------------------------
   output$elev_compare_plot <- renderPlotly({
     df <- RGI_boxplot()
     
@@ -262,32 +259,22 @@ server <- function(input, output) {
       color = ~surge_label
     ) %>%
       layout(
-        title = list(
-          text = "Elevation Comparison",
-          x = 0.05,
-          font = list(size = 20)
-        ),
+        title = list(text = "Elevation Comparison", x = 0.05),
         xaxis = list(title = "Glacier Type"),
         yaxis = list(title = "Mean Elevation (m)"),
-        margin = list(l = 70, r = 30, t = 80, b = 70),
         showlegend = FALSE
       )
   })
   
-  # ============================
-  # 3rd Tab: SCATTERPLOT
-  # ============================
+  # -------------------------
+  # SCATTERPLOT (Slope vs Area)
+  # -------------------------
   RGI_scatter <- reactive({
     RGIdf %>%
       filter(surge_type %in% input$surge_filter_scatter) %>%
-      mutate(
-        surge_label = surge_labels[as.character(surge_type)]
-      )
+      mutate(surge_label = surge_labels[as.character(surge_type)])
   })
   
-  # -------------------------
-  # SCATTERPLOT OUTPUT
-  # -------------------------
   output$scatter_slope_area <- renderPlotly({
     df <- RGI_scatter()
     
@@ -302,17 +289,14 @@ server <- function(input, output) {
     ) %>%
       layout(
         title = list(text = "Slope vs Area by Glacier Surge Type", x = 0.05),
-        xaxis = list(title = "Slope (degrees)",
-                     type = ifelse(input$log_x, "log", "linear")
-                     ),
-        yaxis = list(title = "Area (km²)",
-                     type = ifelse(input$log_y, "log", "linear"))
+        xaxis = list(title = "Slope (degrees)", type = ifelse(input$log_x, "log", "linear")),
+        yaxis = list(title = "Area (km²)", type = ifelse(input$log_y, "log", "linear"))
       )
   })
   
   # -------------------------
-  # REACTIVE LAKE-CREATING SURGING GLACIERS
-  # ------------------------- 
+  # SURGE-TYPE GLACIERS WITH LAKES
+  # -------------------------
   target_ids <- c(
     "RGI2000-v7.0-G-14-07912", "RGI2000-v7.0-G-14-21665",
     "RGI2000-v7.0-G-14-08306", "RGI2000-v7.0-G-14-08687",
@@ -321,7 +305,8 @@ server <- function(input, output) {
     "RGI2000-v7.0-G-14-19543", "RGI2000-v7.0-G-14-14958"
   )
   
-  RGI_target <- reactive({RGIdf %>%
+  RGI_target <- reactive({
+    RGIdf %>%
       filter(rgi_id %in% target_ids) %>%
       mutate(
         glac_name = case_when(
@@ -329,14 +314,23 @@ server <- function(input, output) {
           rgi_id == "RGI2000-v7.0-G-14-14958" ~ "Kyagar",
           rgi_id == "RGI2000-v7.0-G-14-19543" ~ "Chong Kumdan",
           rgi_id == "RGI2000-v7.0-G-14-08488" ~ "Shisper",
-          TRUE ~ glac_name   # keep existing names for others
+          TRUE ~ glac_name
         )
       )
   })
   
+  # Populate glacier selector
+  observe({
+    updateSelectInput(
+      inputId = "selected_glacier",
+      choices = RGI_target()$glac_name,
+      selected = RGI_target()$glac_name[1]
+    )
+  })
+  
   # -------------------------
   # VARIABLE COMPARISON PLOT
-  # ------------------------- 
+  # -------------------------
   output$target_plot <- renderPlotly({
     df <- RGI_target()
     var <- input$target_var
@@ -353,36 +347,51 @@ server <- function(input, output) {
       layout(
         title = paste("Comparison of", var, "Across Selected Surge-Type Glaciers"),
         xaxis = list(title = "Glacier Name"),
-        yaxis = list(
-          title = var,
-          type = ifelse(input$target_log, "log", "linear")
-        ),
+        yaxis = list(title = var, type = ifelse(input$target_log, "log", "linear")),
         margin = list(b = 120)
       )
   })
   
   # -------------------------
-  # MAPPED LAKE GLACIERS
-  # ------------------------- 
+  # FOURTH-TAB MAP (SAFE)
+  # -------------------------
   output$target_map <- renderLeaflet({
     df <- RGI_target()
     
-    leaflet(df) %>%
-      addTiles() %>%
+    # If nothing selected yet → blank map
+    if (is.null(input$selected_glacier) || input$selected_glacier == "") {
+      return(
+        leaflet() %>% addTiles() %>% addPopups(0, 0, "Select a glacier from the dropdown.")
+      )
+    }
+    
+    glacier <- df %>% filter(glac_name == input$selected_glacier)
+    
+    leaflet() %>%
+      addProviderTiles("Esri.WorldImagery") %>%
+      addProviderTiles("Esri.WorldTopoMap", group = "Topo") %>%
+      addProviderTiles("OpenStreetMap", group = "OSM") %>%
+      addLayersControl(
+        baseGroups = c("Satellite (ESRI)", "Topo", "OSM"),
+        options = layersControlOptions(collapsed = FALSE)
+      ) %>%
+      setView(lng = glacier$cenlon, lat = glacier$cenlat, zoom = 11) %>%
       addCircleMarkers(
-        lng = ~cenlon, lat = ~cenlat,
-        popup = ~paste0("<b>", glac_name, "</b><br>", rgi_id),
-        radius = 6, fillOpacity = 0.8,
-        color = "red"
+        data = glacier,
+        lng = ~cenlon,
+        lat = ~cenlat,
+        radius = 7,
+        fillOpacity = 0.9,
+        stroke = TRUE,
+        color = "white",
+        weight = 2,
+        fillColor = "red",
+        popup = ~paste0("<b>", glac_name, "</b><br>", rgi_id)
       )
   })
   
-  # -------------------------
-  # LAKE GLACIER SUMMARY TABLE
-  # ------------------------- 
   output$target_table <- renderTable({
-    df <- RGI_target()
-    df %>% 
+    RGI_target() %>%
       select(rgi_id, glac_name, area_km2, slope_deg, zmean_m, length_km, width_km)
   })
   
